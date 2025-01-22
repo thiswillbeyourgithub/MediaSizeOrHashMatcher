@@ -3,6 +3,7 @@ import os
 import hashlib
 from tqdm import tqdm
 from videohash import VideoHash
+from joblib import Parallel, delayed
 
 def get_file_size(filepath):
     return os.path.getsize(filepath)
@@ -21,7 +22,20 @@ def get_file_hash(filepath, use_videohash=False):
             hash_md5.update(chunk)
     return hash_md5.hexdigest()
 
-def main(reference_dir, candidates_dir, approximate=False, videos=False):
+def process_hash_match(ref_path, candidate_paths, videos):
+    ref_hash = get_file_hash(ref_path, videos)
+    hash_matches = []
+    for cand_path in candidate_paths:
+        cand_hash = get_file_hash(cand_path, videos)
+        if isinstance(ref_hash, VideoHash) and isinstance(cand_hash, VideoHash):
+            # Use VideoHash comparison for videos
+            if not ref_hash.is_different(cand_hash):
+                hash_matches.append(cand_path)
+        elif cand_hash == ref_hash:  # Regular string comparison for MD5
+            hash_matches.append(cand_path)
+    return ref_path, hash_matches
+
+def main(reference_dir, candidates_dir, approximate=False, videos=False, n_jobs=3):
     # Get reference files
     refdict = {}
     all_ref_files = []
@@ -55,21 +69,14 @@ def main(reference_dir, candidates_dir, approximate=False, videos=False):
         if matches:
             sizematchdict[ref_path] = matches
 
-    # Match files by hash for those with same size
-    hashmatchdict = {}
-    for ref_path, candidate_paths in tqdm(sizematchdict.items(), desc="Comparing file hashes"):
-        ref_hash = get_file_hash(ref_path, videos)
-        hash_matches = []
-        for cand_path in candidate_paths:
-            cand_hash = get_file_hash(cand_path, videos)
-            if isinstance(ref_hash, VideoHash) and isinstance(cand_hash, VideoHash):
-                # Use VideoHash comparison for videos
-                if not ref_hash.is_different(cand_hash):
-                    hash_matches.append(cand_path)
-            elif cand_hash == ref_hash:  # Regular string comparison for MD5
-                hash_matches.append(cand_path)
-        if hash_matches:
-            hashmatchdict[ref_path] = hash_matches
+    # Match files by hash for those with same size using parallel processing
+    results = Parallel(n_jobs=n_jobs)(
+        delayed(process_hash_match)(ref_path, candidate_paths, videos)
+        for ref_path, candidate_paths in tqdm(sizematchdict.items(), desc="Comparing file hashes")
+    )
+    
+    # Convert results to dictionary
+    hashmatchdict = {ref_path: matches for ref_path, matches in results if matches}
 
     # Print summary
     print("\nMatching Files Summary:")
@@ -94,6 +101,8 @@ if __name__ == "__main__":
                       help='Enable approximate size matching with 1% tolerance')
     parser.add_argument('--videos', action='store_true',
                       help='Use video hash comparison for video files')
+    parser.add_argument('--n_jobs', type=int, default=3,
+                      help='Number of parallel jobs for hash matching (default: 3)')
     
     args = parser.parse_args()
-    main(args.reference_dir, args.candidates_dir, args.approximate, args.videos)
+    main(args.reference_dir, args.candidates_dir, args.approximate, args.videos, args.n_jobs)
