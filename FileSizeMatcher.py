@@ -10,8 +10,7 @@ def get_file_size(filepath):
 def get_file_hash(filepath, use_videohash=False):
     if use_videohash and filepath.lower().endswith(('.mp4', '.avi', '.mov', '.mkv')):
         try:
-            vh = VideoHash(filepath)
-            return vh.hash_hex
+            return VideoHash(filepath)  # Return VideoHash object for videos
         except Exception:
             # Fallback to MD5 if video processing fails
             pass
@@ -62,7 +61,12 @@ def main(reference_dir, candidates_dir, approximate=False, videos=False):
         ref_hash = get_file_hash(ref_path, videos)
         hash_matches = []
         for cand_path in candidate_paths:
-            if get_file_hash(cand_path, videos) == ref_hash:
+            cand_hash = get_file_hash(cand_path, videos)
+            if isinstance(ref_hash, VideoHash) and isinstance(cand_hash, VideoHash):
+                # Use VideoHash comparison for videos
+                if not ref_hash.is_different(cand_hash):
+                    hash_matches.append(cand_path)
+            elif cand_hash == ref_hash:  # Regular string comparison for MD5
                 hash_matches.append(cand_path)
         if hash_matches:
             hashmatchdict[ref_path] = hash_matches
