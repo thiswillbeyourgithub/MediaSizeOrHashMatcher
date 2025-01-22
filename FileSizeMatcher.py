@@ -2,18 +2,27 @@ import argparse
 import os
 import hashlib
 from tqdm import tqdm
+from videohash import VideoHash
 
 def get_file_size(filepath):
     return os.path.getsize(filepath)
 
-def get_file_hash(filepath):
+def get_file_hash(filepath, use_videohash=False):
+    if use_videohash and filepath.lower().endswith(('.mp4', '.avi', '.mov', '.mkv')):
+        try:
+            vh = VideoHash(filepath)
+            return vh.hash_hex
+        except Exception:
+            # Fallback to MD5 if video processing fails
+            pass
+    
     hash_md5 = hashlib.md5()
     with open(filepath, "rb") as f:
         for chunk in iter(lambda: f.read(4096), b""):
             hash_md5.update(chunk)
     return hash_md5.hexdigest()
 
-def main(reference_dir, candidates_dir, approximate=False):
+def main(reference_dir, candidates_dir, approximate=False, videos=False):
     # Get reference files
     refdict = {}
     all_ref_files = []
@@ -50,10 +59,10 @@ def main(reference_dir, candidates_dir, approximate=False):
     # Match files by hash for those with same size
     hashmatchdict = {}
     for ref_path, candidate_paths in tqdm(sizematchdict.items(), desc="Comparing file hashes"):
-        ref_hash = get_file_hash(ref_path)
+        ref_hash = get_file_hash(ref_path, videos)
         hash_matches = []
         for cand_path in candidate_paths:
-            if get_file_hash(cand_path) == ref_hash:
+            if get_file_hash(cand_path, videos) == ref_hash:
                 hash_matches.append(cand_path)
         if hash_matches:
             hashmatchdict[ref_path] = hash_matches
@@ -77,8 +86,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Match files between directories based on size')
     parser.add_argument('reference_dir', help='Directory containing reference files')
     parser.add_argument('candidates_dir', help='Directory containing candidate files to match')
-    parser.add_argument('--approximate', action='store_true', 
+    parser.add_argument('--approximate', action='store_true',
                       help='Enable approximate size matching with 1% tolerance')
+    parser.add_argument('--videos', action='store_true',
+                      help='Use video hash comparison for video files')
     
     args = parser.parse_args()
-    main(args.reference_dir, args.candidates_dir, args.approximate)
+    main(args.reference_dir, args.candidates_dir, args.approximate, args.videos)
