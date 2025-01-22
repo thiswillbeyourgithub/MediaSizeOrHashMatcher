@@ -1,6 +1,7 @@
 import argparse
 import os
 import hashlib
+from tqdm import tqdm
 
 def get_file_size(filepath):
     return os.path.getsize(filepath)
@@ -15,15 +16,21 @@ def get_file_hash(filepath):
 def main(reference_dir, candidates_dir):
     # Get reference files
     refdict = {}
+    all_ref_files = []
     for root, _, files in os.walk(reference_dir):
-        for filename in files:
-            filepath = os.path.abspath(os.path.join(root, filename))
-            refdict[filepath] = get_file_size(filepath)
+        all_ref_files.extend([os.path.join(root, f) for f in files])
+    
+    for filename in tqdm(all_ref_files, desc="Processing reference files"):
+        filepath = os.path.abspath(filename)
+        refdict[filepath] = get_file_size(filepath)
 
     # Get candidate files
     candidict = {}
+    all_cand_files = []
     for root, _, files in os.walk(candidates_dir):
-        for filename in files:
+        all_cand_files.extend([os.path.join(root, f) for f in files])
+    
+    for filename in tqdm(all_cand_files, desc="Processing candidate files"):
             filepath = os.path.abspath(os.path.join(root, filename))
             if filepath not in refdict:  # Skip if file is in reference dict
                 candidict[filepath] = get_file_size(filepath)
@@ -37,10 +44,12 @@ def main(reference_dir, candidates_dir):
 
     # Match files by hash for those with same size
     hashmatchdict = {}
-    for ref_path, candidate_paths in sizematchdict.items():
+    for ref_path, candidate_paths in tqdm(sizematchdict.items(), desc="Comparing file hashes"):
         ref_hash = get_file_hash(ref_path)
-        hash_matches = [cand_path for cand_path in candidate_paths 
-                       if get_file_hash(cand_path) == ref_hash]
+        hash_matches = []
+        for cand_path in candidate_paths:
+            if get_file_hash(cand_path) == ref_hash:
+                hash_matches.append(cand_path)
         if hash_matches:
             hashmatchdict[ref_path] = hash_matches
 
