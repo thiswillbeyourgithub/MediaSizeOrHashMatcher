@@ -13,7 +13,7 @@ def get_file_hash(filepath):
             hash_md5.update(chunk)
     return hash_md5.hexdigest()
 
-def main(reference_dir, candidates_dir):
+def main(reference_dir, candidates_dir, approximate=False):
     # Get reference files
     refdict = {}
     all_ref_files = []
@@ -38,7 +38,12 @@ def main(reference_dir, candidates_dir):
     # Match files by size
     sizematchdict = {}
     for ref_path, ref_size in refdict.items():
-        matches = [cand_path for cand_path, cand_size in candidict.items() if cand_size == ref_size]
+        if approximate:
+            matches = [cand_path for cand_path, cand_size in candidict.items() 
+                      if abs(cand_size - ref_size) <= (ref_size * 0.01)]  # 1% tolerance
+        else:
+            matches = [cand_path for cand_path, cand_size in candidict.items() 
+                      if cand_size == ref_size]
         if matches:
             sizematchdict[ref_path] = matches
 
@@ -72,6 +77,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Match files between directories based on size')
     parser.add_argument('reference_dir', help='Directory containing reference files')
     parser.add_argument('candidates_dir', help='Directory containing candidate files to match')
+    parser.add_argument('--approximate', action='store_true', 
+                      help='Enable approximate size matching with 1% tolerance')
     
     args = parser.parse_args()
-    main(args.reference_dir, args.candidates_dir)
+    main(args.reference_dir, args.candidates_dir, args.approximate)
