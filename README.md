@@ -16,7 +16,7 @@ MediaSizeOrHashMatcher is a Python tool for finding matching files between two d
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/MediaSizeOrHashMatcher.git
+git clone https://github.com/thiswillbeyourgithub/MediaSizeOrHashMatcher.git
 cd MediaSizeOrHashMatcher
 ```
 
